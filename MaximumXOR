@@ -1,0 +1,42 @@
+#include <stdlib.h>
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+int findMaximumXOR(int* nums, int numsSize) {
+    if (numsSize < 2) return 0;
+    int maxNodes = numsSize * 31 + 1;
+    int* trie = (int*)malloc(maxNodes * 2 * sizeof(int));
+    trie[0] = -1;
+    trie[1] = -1;
+    int nodeCount = 0;
+    int globalMaxXOR = 0;
+    for (int i = 0; i < numsSize; i++) {
+        int num = nums[i];
+        if (i > 0) {
+            int curr = 0;
+            int currentMax = 0;
+            for (int bitIdx = 30; bitIdx >= 0; bitIdx--) {
+                int bit = (num >> bitIdx) & 1;
+                int toggledBit = 1 - bit;
+                if (trie[curr * 2 + toggledBit] != -1) {
+                    currentMax |= (1 << bitIdx);
+                    curr = trie[curr * 2 + toggledBit];
+                } else {
+                    curr = trie[curr * 2 + bit];
+                }
+            }
+            globalMaxXOR = MAX(globalMaxXOR, currentMax);
+        }
+        int curr = 0;
+        for (int bitIdx = 30; bitIdx >= 0; bitIdx--) {
+            int bit = (num >> bitIdx) & 1;
+            if (trie[curr * 2 + bit] == -1) {
+                nodeCount++;
+                trie[nodeCount * 2 + 0] = -1;
+                trie[nodeCount * 2 + 1] = -1;
+                trie[curr * 2 + bit] = nodeCount;
+            }
+            curr = trie[curr * 2 + bit];
+        }
+    }
+    free(trie);
+    return globalMaxXOR;
+}
