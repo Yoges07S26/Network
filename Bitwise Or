@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+// A simple hash set node structure for collision handling via chaining
+typedef struct Node {
+    int val;
+    struct Node* next;
+} Node;
+
+// Hash table structure
+typedef struct {
+    Node** buckets;
+    int size;
+} HashSet;
+
+HashSet* createSet(int size) {
+    HashSet* set = (HashSet*)malloc(sizeof(HashSet));
+    set->size = size;
+    set->buckets = (Node**)calloc(size, sizeof(Node*));
+    return set;
+}
+
+// Returns 1 if inserted successfully, 0 if it already existed
+int insertSet(HashSet* set, int val) {
+    int index = abs(val) % set->size;
+    Node* curr = set->buckets[index];
+    while (curr != NULL) {
+        if (curr->val == val) return 0;
+        curr = curr->next;
+    }
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    newNode->val = val;
+    newNode->next = set->buckets[index];
+    set->buckets[index] = newNode;
+    return 1;
+}
+
+void freeSet(HashSet* set) {
+    for (int i = 0; i < set->size; i++) {
+        Node* curr = set->buckets[i];
+        while (curr != NULL) {
+            Node* temp = curr;
+            curr = curr->next;
+            temp = NULL;
+            free(temp);
+        }
+    }
+    free(set->buckets);
+    free(set);
+}
+
+int subarrayBitwiseORs(int* arr, int arrSize) {
+    if (arrSize == 0) return 0;
+
+    // The maximum possible unique values for any input won't exceed a few hundred thousand
+    HashSet* globalSet = createSet(200003); 
+    
+    // Arrays to hold results ending at the current element.
+    // Because integers have at most 32 bits, the size never exceeds 32.
+    int* curRes = (int*)malloc(33 * sizeof(int));
+    int curSize = 0;
+    
+    int totalUniqueCount = 0;
+
+    for (int i = 0; i < arrSize; i++) {
+        int* nextRes = (int*)malloc(33 * sizeof(int));
+        int nextSize = 0;
+
+        // Base case for the current single-element subarray
+        nextRes[nextSize++] = arr[i];
+        if (insertSet(globalSet, arr[i])) {
+            totalUniqueCount++;
+        }
+
+        // Compute OR values for subarrays extending to index i
+        for (int j = 0; j < curSize; j++) {
+            int orVal = curRes[j] | arr[i];
+            
+            // To maintain unique elements in our small local tracking array,
+            // we check if the value matches the last added item.
+            if (orVal != nextRes[nextSize - 1]) {
+                nextRes[nextSize++] = orVal;
+                if (insertSet(globalSet, orVal)) {
+                    totalUniqueCount++;
+                }
+            }
+        }
+
+        free(curRes);
+        curRes = nextRes;
+        curSize = nextSize;
+    }
+
+    free(curRes);
+    freeSet(globalSet);
+    
+    return totalUniqueCount;
+}
