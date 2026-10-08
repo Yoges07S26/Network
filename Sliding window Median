@@ -1,0 +1,199 @@
+typedef struct HashNode {
+    long long key;
+    int count;
+    struct HashNode* next;
+} HashNode;
+#define HASH_SIZE 20011
+typedef struct {
+    HashNode* table[HASH_SIZE];
+} HashMap;
+void hash_insert(HashMap* map, long long key) {
+    int idx = abs((int)(key % HASH_SIZE));
+    HashNode* curr = map->table[idx];
+    while (curr) {
+        if (curr->key == key) {
+            curr->count++;
+            return;
+        }
+        curr = curr->next;
+    }
+    HashNode* node = (HashNode*)malloc(sizeof(HashNode));
+    node->key = key;
+    node->count = 1;
+    node->next = map->table[idx];
+    map->table[idx] = node;
+}
+int hash_get(HashMap* map, long long key) {
+    int idx = abs((int)(key % HASH_SIZE));
+    HashNode* curr = map->table[idx];
+    while (curr) {
+        if (curr->key == key) return curr->count;
+        curr = curr->next;
+    }
+    return 0;
+}
+void hash_remove(HashMap* map, long long key) {
+    int idx = abs((int)(key % HASH_SIZE));
+    HashNode* curr = map->table[idx];
+    while (curr) {
+        if (curr->key == key) {
+            if (curr->count > 0) curr->count--;
+            return;
+        }
+        curr = curr->next;
+    }
+}
+void hash_free(HashMap* map) {
+    for (int i = 0; i < HASH_SIZE; i++) {
+        HashNode* curr = map->table[i];
+        while (curr) {
+            HashNode* tmp = curr->next;
+            free(curr);
+            curr = tmp;
+        }
+    }
+}
+typedef struct {
+    long long* data;
+    int size;
+    int capacity;
+    int isMinHeap;
+} Heap;
+Heap* createHeap(int cap, int isMinHeap) {
+    Heap* h = (Heap*)malloc(sizeof(Heap));
+    h->data = (long long*)malloc((cap + 1) * sizeof(long long));
+    h->size = 0;
+    h->capacity = cap;
+    h->isMinHeap = isMinHeap;
+    return h;
+}
+
+void swap(long long* a, long long* b) {
+    long long tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+int compareHeap(long long a, long long b, int isMinHeap) {
+    if (isMinHeap) return a < b;
+    return a > b;
+}
+
+void push(Heap* h, long long val) {
+    h->size++;
+    h->data[h->size] = val;
+    int curr = h->size;
+    while (curr > 1) {
+        int parent = curr / 2;
+        if (compareHeap(h->data[curr], h->data[parent], h->isMinHeap)) {
+            swap(&h->data[curr], &h->data[parent]);
+            curr = parent;
+        } else {
+            break;
+        }
+    }
+}
+
+void pop(Heap* h) {
+    if (h->size == 0) return;
+    h->data[1] = h->data[h->size];
+    h->size--;
+    int curr = 1;
+    while (curr * 2 <= h->size) {
+        int target = curr * 2;
+        if (target + 1 <= h->size && compareHeap(h->data[target + 1], h->data[target], h->isMinHeap)) {
+            target++;
+        }
+        if (compareHeap(h->data[target], h->data[curr], h->isMinHeap)) {
+            swap(&h->data[curr], &h->data[target]);
+            curr = target;
+        } else {
+            break;
+        }
+    }
+}
+
+long long top(Heap* h) {
+    return h->data[1];
+}
+
+// Clean up expired numbers sitting at the top of the heaps
+void prune(Heap* h, HashMap* map) {
+    while (h->size > 0 && hash_get(map, top(h)) > 0) {
+        hash_remove(map, top(h));
+        pop(h);
+    }
+}
+
+double* medianSlidingWindow(int* nums, int numsSize, int k, int* returnSize) {
+    if (numsSize < k || k <= 0) {
+        *returnSize = 0;
+        return NULL;
+    }
+
+    int resultSize = numsSize - k + 1;
+    *returnSize = resultSize;
+    double* medians = (double*)malloc(resultSize * sizeof(double));
+    Heap* small = createHeap(numsSize, 0);
+    Heap* large = createHeap(numsSize, 1);
+    HashMap map;
+    for (int i = 0; i < HASH_SIZE; i++) map.table[i] = NULL;
+    int small_size = 0, large_size = 0; 
+    void rebalance() {
+        if (small_size > large_size + 1) {
+            push(large, top(small));
+            pop(small);
+            small_size--;
+            large_size++;
+            prune(small, &map);
+        } else if (small_size < large_size) {
+            push(small, top(large));
+            pop(large);
+            large_size--;
+            small_size++;
+            prune(large, &map);
+        }
+    }
+    void addNum(long long num) {
+        if (small_size == 0 || num <= top(small)) {
+            push(small, num);
+            small_size++;
+        } else {
+            push(large, num);
+            large_size++;
+        }
+        rebalance();
+    }
+    void removeNum(long long num) {
+        hash_insert(&map, num);
+        if (num <= top(small)) {
+            small_size--;
+            if (num == top(small)) prune(small, &map);
+        } else {
+            large_size--;
+            if (num == top(large)) prune(large, &map);
+        }
+        rebalance();
+    }
+    for (int i = 0; i < k; i++) {
+        addNum(nums[i]);
+    }
+    if (k % 2 == 1) {
+        medians[0] = (double)top(small);
+    } else {
+        medians[0] = ((double)top(small) + (double)top(large)) / 2.0;
+    }
+    for (int i = k; i < numsSize; i++) {
+        addNum(nums[i]);
+        removeNum(nums[i - k]); 
+        if (k % 2 == 1) {
+            medians[i - k + 1] = (double)top(small);
+        } else {
+            medians[i - k + 1] = ((double)top(small) + (double)top(large)) / 2.0;
+        }
+    }
+    free(small->data); free(small);
+    free(large->data); free(large);
+    hash_free(&map);
+    return medians;
+}
